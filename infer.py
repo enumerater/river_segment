@@ -10,6 +10,11 @@ Usage:
 
     # Learnable Prompt (no box)
     python infer.py --lora_ckpt best_model.pth --adapt_sam_type 2 --img_size 1024 --num_classes 1
+
+    # Grounding DINO + LoRA (online box generation)
+    python infer.py --lora_ckpt best_model.pth --adapt_sam_type 1 --img_size 1024 --num_classes 1 --rank 4 \
+        --text_prompt "waterbody" --gd_ckpt checkpoints/groundingdino_swinb_cogcoor.pth \
+        --gd_config GroundingDINO/groundingdino/config/GroundingDINO_SwinB.cfg.py
 """
 import os
 import sys
@@ -26,6 +31,7 @@ from tqdm.contrib import tzip
 
 from learnable_prompt_sam import LearnablePromptSAM
 from MobileSAM.mobile_sam import sam_model_registry
+from grounding_dino_wrapper import GroundingDINOWrapper
 
 from PIL import Image
 
@@ -33,7 +39,7 @@ from eval_metrics import mean_iou
 from datasets.dataset_custom import MultiClassVOCSegmentation, BinaClassVOCSegmentation
 
 
-def inference(args, multimask_output, model):
+def inference(args, multimask_output, model, gd_wrapper=None):
     root = args.root_path
     img_path = os.path.join(root, 'JPEGImages')
     gt_path = os.path.join(root, 'SegmentationClass')
@@ -44,7 +50,7 @@ def inference(args, multimask_output, model):
     assert os.path.exists(test_txt), 'test_txt not exists'
 
     if args.dataset == 'Custom_MultiClass':
-        db_test = MultiClassVOCSegmentation(args.img_size, img_path, gt_path, test_txt, train_val='test')
+        db_test = MultiClassVOCSegmentation(args.img_size, img_path, gt_path, test_txt, train_val='test', label_dir=args.label_dir)
     elif args.dataset == 'Custom_BinaClass':
         db_test = BinaClassVOCSegmentation(args.img_size, img_path, gt_path, test_txt, train_val='test')
 
@@ -71,6 +77,12 @@ def inference(args, multimask_output, model):
             if args.adapt_sam_type == 2:
                 output_masks = model(image)
             else:
+                if gd_wrapper is not None:
+                    pil_img = Image.open(os.path.join(img_path, img_prefix + '.jpg')).convert('RGB')
+                    orig_w, orig_h = pil_img.size
+                    boxes = gd_wrapper.generate_boxes(pil_img, args.text_prompt)
+                    prompt = GroundingDINOWrapper.boxes_original_to_sam(boxes, (orig_w, orig_h), args.img_size)
+                    prompt = prompt.view(1, -1)
                 prompt = prompt.cuda()
                 outputs = model(image, multimask_output, args.img_size, prompt)
                 output_masks = outputs['masks']
@@ -128,6 +140,17 @@ if __name__ == '__main__':
     parser.add_argument('--module', type=str, default='sam_lora_image_encoder')
     parser.add_argument('--adapt_sam_type', type=int, default=0,
                         help='0: Full_finetune; 1: LoRA; 2: LearnablePrompt (no box)')
+    parser.add_argument('--label_dir', type=str, default='data/VOCdevkit/VOC2012/TxtLabel',
+                        help='Directory with box label .txt files')
+    # Grounding DINO arguments
+    parser.add_argument('--text_prompt', type=str, default=None,
+                        help='Text prompt for Grounding DINO (e.g. "waterbody")')
+    parser.add_argument('--gd_ckpt', type=str, default=None,
+                        help='Path to Grounding DINO checkpoint')
+    parser.add_argument('--gd_config', type=str, default=None,
+                        help='Path to Grounding DINO config file')
+    parser.add_argument('--gd_box_threshold', type=float, default=0.25)
+    parser.add_argument('--gd_text_threshold', type=float, default=0.25)
 
     args = parser.parse_args()
 
@@ -202,4 +225,15 @@ if __name__ == '__main__':
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
     logging.info(str(args))
 
-    inference(args, multimask_output, net)
+    gd_wrapper = None
+    if args.text_prompt is not None:
+        if args.gd_ckpt is None:
+            raise ValueError('--gd_ckpt is required when using --text_prompt')
+        gd_wrapper = GroundingDINOWrapper(
+            gd_ckpt_path=args.gd_ckpt,
+            gd_config_path=args.gd_config,
+            box_threshold=args.gd_box_threshold,
+            text_threshold=args.gd_text_threshold,
+        )
+
+    inference(args, multimask_output, net, gd_wrapper)

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 
 class MultiClassVOCSegmentation(data.Dataset):
-    def __init__(self, args_img_size, img_path, gt_path, txt_file, train_val='train', base_size=None, crop_size=None, flip_prob=None):
+    def __init__(self, args_img_size, img_path, gt_path, txt_file, train_val='train', base_size=None, crop_size=None, flip_prob=None, label_dir='data/VOCdevkit/VOC2012/TxtLabel'):
         super(MultiClassVOCSegmentation, self).__init__()
 
         if train_val == 'train':
@@ -34,7 +34,7 @@ class MultiClassVOCSegmentation(data.Dataset):
 
         self.img_files = [os.path.join(img_path, i + '.jpg') for i in data]
         self.gt_files = [os.path.join(gt_path, i + '.png') for i in data]
-        self.txt_files = [os.path.join("data/VOCdevkit/VOC2012/TxtLabel", i + '.txt') for i in data]
+        self.txt_files = [os.path.join(label_dir, i + '.txt') for i in data]
 
     def __getitem__(self, index):
         img = Image.open(self.img_files[index])

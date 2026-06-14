@@ -68,6 +68,8 @@ parser.add_argument("--weight_decay", default=0.1, type=float, help="weight deca
 parser.add_argument('--save_weight_interval', type=int, default=1, help='the interval that save trained weight')
 parser.add_argument('--adapt_sam_type', type=int, default=0,
                     help='0: Full_finetune; 1: LoRA; 2: LearnablePrompt (no box)')
+parser.add_argument('--label_dir', type=str, default='data/VOCdevkit/VOC2012/TxtLabel',
+                    help='Directory with box label .txt files (default: TxtLabel, switch to GD_Label for GD boxes)')
 args = parser.parse_args()
 
 if __name__ == "__main__":

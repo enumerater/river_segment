@@ -2,12 +2,21 @@
 Single-image inference & visualization for SAM-based segmentation.
 
 Usage:
+    # Default: full-image box prompt
     python infer_one.py --image_path path/to/image.jpg --lora_ckpt best_model.pth
                          --img_size 1024 --adapt_sam_type 0 --num_classes 1
+
+    # Grounding DINO: text prompt generates bounding boxes automatically
+    python infer_one.py --image_path path/to/image.jpg --lora_ckpt best_model.pth
+                         --adapt_sam_type 1 --img_size 1024 --num_classes 1 --rank 4
+                         --text_prompt "waterbody"
+                         --gd_ckpt checkpoints/groundingdino_swinb_cogcoor.pth
+                         --gd_config GroundingDINO/groundingdino/config/GroundingDINO_SwinB.cfg.py
 """
 import argparse
 import os
 import random
+import sys
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
@@ -21,6 +30,7 @@ from torchvision.transforms import functional as TF
 
 from learnable_prompt_sam import LearnablePromptSAM
 from MobileSAM.mobile_sam import sam_model_registry
+from grounding_dino_wrapper import GroundingDINOWrapper
 
 
 def get_default_prompt(img_size=1024):
@@ -41,6 +51,15 @@ def load_image(img_path, img_size):
     img = TF.to_tensor(img)
     img = TF.normalize(img, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
     return img.unsqueeze(0), orig_size
+
+
+def generate_gd_prompt(image_path, wrapper, text_prompt, img_size):
+    """Run Grounding DINO on an image and return a SAM-compatible prompt tensor."""
+    pil_img = Image.open(image_path).convert('RGB')
+    orig_w, orig_h = pil_img.size
+    boxes = wrapper.generate_boxes(pil_img, text_prompt)
+    prompt = GroundingDINOWrapper.boxes_original_to_sam(boxes, (orig_w, orig_h), img_size)
+    return prompt.unsqueeze(0)  # shape (1, N, 4) for SAM
 
 
 def build_model(args):
@@ -137,6 +156,17 @@ def main():
                         help='0: Full_finetune; 1: LoRA; 2: LearnablePrompt (no box)')
     parser.add_argument('--prompt', type=str, default=None,
                         help='Bounding box prompt (N*4 values). Default: full-image box. Ignored for type 2.')
+    # Grounding DINO arguments (mutually exclusive with --prompt)
+    parser.add_argument('--text_prompt', type=str, default=None,
+                        help='Text prompt for Grounding DINO (e.g. "waterbody"). Overrides --prompt when set.')
+    parser.add_argument('--gd_ckpt', type=str, default=None,
+                        help='Path to Grounding DINO checkpoint')
+    parser.add_argument('--gd_config', type=str, default=None,
+                        help='Path to Grounding DINO config file')
+    parser.add_argument('--gd_box_threshold', type=float, default=0.25,
+                        help='Box confidence threshold for GD')
+    parser.add_argument('--gd_text_threshold', type=float, default=0.25,
+                        help='Text confidence threshold for GD')
     parser.add_argument('--seed', type=int, default=1234, help='Random seed')
     parser.add_argument('--deterministic', type=int, default=1, help='Use deterministic mode')
     args = parser.parse_args()
@@ -154,18 +184,36 @@ def main():
 
     os.makedirs(args.save_dir, exist_ok=True)
 
-    if args.prompt is not None:
-        prompt = parse_prompt(args.prompt)
-    else:
-        prompt = get_default_prompt(args.img_size)
-    prompt = prompt.unsqueeze(0).cuda()
-
     print(f'Building model (adapt_sam_type={args.adapt_sam_type})...')
     net, low_res = build_model(args)
 
     print(f'Loading image: {args.image_path}')
     image_tensor, orig_size = load_image(args.image_path, args.img_size)
     image_tensor = image_tensor.cuda()
+
+    # Determine prompt source: GD > explicit --prompt > default full-image box
+    if args.text_prompt is not None:
+        if args.gd_ckpt is None:
+            print('Error: --gd_ckpt is required when using --text_prompt')
+            sys.exit(1)
+        if args.gd_config is None:
+            print('Error: --gd_config is required when using --text_prompt')
+            sys.exit(1)
+        print(f'Generating boxes with Grounding DINO (prompt: "{args.text_prompt}")...')
+        gd_wrapper = GroundingDINOWrapper(
+            gd_ckpt_path=args.gd_ckpt,
+            gd_config_path=args.gd_config,
+            box_threshold=args.gd_box_threshold,
+            text_threshold=args.gd_text_threshold,
+        )
+        prompt = generate_gd_prompt(args.image_path, gd_wrapper, args.text_prompt, args.img_size)
+    elif args.prompt is not None:
+        prompt = parse_prompt(args.prompt)
+        prompt = prompt.unsqueeze(0)
+    else:
+        prompt = get_default_prompt(args.img_size)
+        prompt = prompt.unsqueeze(0)
+    prompt = prompt.cuda()
 
     multimask_output = args.num_classes > 1
     pred_mask, probs = predict(net, image_tensor, prompt, multimask_output, args.img_size, args.adapt_sam_type)

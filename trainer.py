@@ -56,8 +56,8 @@ def trainer_custom(args, model, snapshot_path, multimask_output, low_res):
     assert os.path.exists(test_txt), 'test_txt not exists'
 
     if args.dataset == 'Custom_MultiClass':
-        db_train = MultiClassVOCSegmentation(args.img_size, img_path, gt_path, train_txt, train_val='train')
-        db_val = MultiClassVOCSegmentation(args.img_size, img_path, gt_path, val_txt, train_val='val')
+        db_train = MultiClassVOCSegmentation(args.img_size, img_path, gt_path, train_txt, train_val='train', label_dir=args.label_dir)
+        db_val = MultiClassVOCSegmentation(args.img_size, img_path, gt_path, val_txt, train_val='val', label_dir=args.label_dir)
 
     print("The length of train set is: {}".format(len(db_train)))
     print("The length of val set is: {}".format(len(db_val)))

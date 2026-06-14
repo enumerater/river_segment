@@ -161,3 +161,13 @@ class DiceLoss(nn.Module):
         return loss / self.n_classes
 
 
+
+"""
+python precompute_gd_boxes.py ^
+--gd_ckpt E:\work\seg\samuss\checkpoints\groundingdino_swinb_cogcoor.pth ^
+--gd_config E:\work\seg\GroundingDINO\groundingdino\config\GroundingDINO_SwinB_cfg.py ^
+--text_prompt "waterbody" ^
+--output_dir E:\work\seg\samuss\data\VOCdevkit\VOC2012\GD_Label
+
+
+"""
