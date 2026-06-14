@@ -50,7 +50,8 @@ python infer_one.py --image_path path/to/image.jpg --lora_ckpt best_model.pth --
 
 ## 模型类型
 
-| Type | 模式 | 加载方式 |
-|------|------|---------|
-| 0 | Full Fine-tune | `model.load_state_dict()` |
-| 1 | LoRA | `model.load_lora_parameters()` |
+| Type | 模式 | 加载方式 | 需要 Box |
+|------|------|---------|----------|
+| 0 | Full Fine-tune | `model.load_state_dict()` | 是 |
+| 1 | LoRA | `model.load_lora_parameters()` | 是 |
+| 2 | Learnable Prompt | `model.load_state_dict()` | **否** |

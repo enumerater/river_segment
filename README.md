@@ -50,7 +50,8 @@ python infer_one.py --image_path path/to/image.jpg --lora_ckpt best_model.pth --
 
 ## Model Types
 
-| Type | Mode | Checkpoint Loading |
-|------|------|--------------------|
-| 0 | Full Fine-tune | `model.load_state_dict()` |
-| 1 | LoRA | `model.load_lora_parameters()` |
+| Type | Mode | Description | Need Box |
+|------|------|-------------|----------|
+| 0 | Full Fine-tune | `model.load_state_dict()` | Yes |
+| 1 | LoRA | `model.load_lora_parameters()` | Yes |
+| 2 | Learnable Prompt | `model.load_state_dict()` | **No** |

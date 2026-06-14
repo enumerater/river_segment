@@ -67,10 +67,27 @@ class LayerNorm2d(nn.Module):
 
 ## 4. 微调策略 (adapt_sam_type)
 
-| Type | 名称 | 说明 | 保存的权重 | 加载方式 |
-|------|------|------|-----------|---------|
-| 0 | Full Fine-tune | 全参数微调 | 完整 state_dict | `net.load_state_dict(ckpt)` |
-| 1 | LoRA | 低秩适配 (rank=4) | LoRA + prompt/mask 头 | `net.load_lora_parameters(ckpt)` |
+| Type | 名称 | 说明 | 需要 Box Prompt | 保存的权重 | 加载方式 |
+|------|------|------|----------------|-----------|---------|
+| 0 | Full Fine-tune | 全参数微调 | 是 | 完整 state_dict | `net.load_state_dict(ckpt)` |
+| 1 | LoRA | 低秩适配 (rank=4) | 是 | LoRA + prompt/mask 头 | `net.load_lora_parameters(ckpt)` |
+| 2 | Learnable Prompt | 可学习提示，无需 box | **否** | 完整 state_dict | `net.load_state_dict(ckpt)` |
+
+### 4.1 Learnable Prompt SAM (Type 2)
+
+核心创新：**去掉 Prompt Encoder 和 Mask Decoder，在每个 ViT Block 中嵌入可学习的 PromptGen 模块，自建 Decoder**。
+
+```
+输入图像 → SAM Image Encoder (每个ViT block + PromptGen) → 自建 Decoder → 分割结果
+                                                                  ↑
+                                                          (无 Prompt Encoder)
+```
+
+架构改动：
+- **冻结** Image Encoder 原始权重
+- 每个 Transformer Block 后插入 `PromptGen`（Conv → LN → GELU → DWConv → LN → GELU → Conv → LN → GELU），其输出**残差加到**原 Block 输出上
+- **删除** `prompt_encoder` 和 `mask_decoder`
+- **替换**为：`ConvTranspose2d 上采样 (256→64) → MSConv2d (多尺度卷积) → CBAM → Conv2d(num_classes)`
 
 ---
 
@@ -145,6 +162,7 @@ samuss/
 ├── utils.py                          # 损失函数
 ├── eval_metrics.py                   # 评估指标
 ├── sam_lora_image_encoder.py         # LoRA 实现
+├── learnable_prompt_sam.py           # 可学习提示模型 (Type 2, 无需 box)
 ├── convert_checkpoint.py             # 权重格式转换
 ├── MobileSAM/mobile_sam/
 │   ├── build_sam.py                  # 模型构建入口

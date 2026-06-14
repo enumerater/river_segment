@@ -1,5 +1,5 @@
 """
-Train SAM for segmentation (Full fine-tune or LoRA).
+Train SAM for segmentation (Full fine-tune, LoRA, or LearnablePrompt).
 
 Usage:
     # Full fine-tune
@@ -7,6 +7,9 @@ Usage:
 
     # LoRA fine-tune
     python train.py --adapt_sam_type 1 --batch_size 1 --max_epochs 10 --img_size 1024 --num_classes 1 --rank 4
+
+    # Learnable Prompt (no bounding box needed)
+    python train.py --adapt_sam_type 2 --batch_size 1 --max_epochs 10 --img_size 1024 --num_classes 1
 """
 import argparse
 import logging
@@ -19,6 +22,7 @@ import torch.backends.cudnn as cudnn
 from importlib import import_module
 
 from sam_lora_image_encoder import LoRA_Sam
+from learnable_prompt_sam import LearnablePromptSAM
 from MobileSAM.mobile_sam import sam_model_registry
 from trainer import trainer_custom
 
@@ -50,7 +54,7 @@ parser.add_argument('--vit_name', type=str,
                     default='vit_b', help='select one vit model')
 parser.add_argument('--ckpt', type=str, default='checkpoints/sam_vit_b_01ec64.pth',
                     help='Pretrained checkpoint')
-parser.add_argument('--lora_ckpt', type=str, default=None, help='Finetuned lora checkpoint')
+parser.add_argument('--lora_ckpt', type=str, default=None, help='Resume from checkpoint')
 parser.add_argument('--rank', type=int, default=4, help='Rank for LoRA adaptation')
 parser.add_argument('--warmup', default=False, help='If activated, warp up the learning from a lower lr to the base_lr')
 parser.add_argument('--warmup_period', type=int, default=250,
@@ -63,7 +67,7 @@ parser.add_argument('--lr_exp', type=float, default=0.9, help='The learning rate
 parser.add_argument("--weight_decay", default=0.1, type=float, help="weight decay for the optimizer")
 parser.add_argument('--save_weight_interval', type=int, default=1, help='the interval that save trained weight')
 parser.add_argument('--adapt_sam_type', type=int, default=0,
-                    help='0: Full_finetune; 1: LoRA')
+                    help='0: Full_finetune; 1: LoRA; 2: LearnablePrompt (no box)')
 args = parser.parse_args()
 
 if __name__ == "__main__":
@@ -115,9 +119,17 @@ if __name__ == "__main__":
         print('Using LoRA!')
         pkg = import_module(args.module)
         net = pkg.LoRA_Sam(sam, args.rank).cuda()
+    elif args.adapt_sam_type == 2:
+        print('Using Learnable Prompt SAM!')
+        sam = sam.cuda()
+        net = LearnablePromptSAM(sam=sam, num_classes=args.num_classes + 1)
+        net = net.cuda()
 
     if args.lora_ckpt is not None:
-        net.load_lora_parameters(args.lora_ckpt)
+        if args.adapt_sam_type == 1:
+            net.load_lora_parameters(args.lora_ckpt)
+        else:
+            net.load_state_dict(torch.load(args.lora_ckpt))
 
     if args.num_classes > 1:
         multimask_output = True

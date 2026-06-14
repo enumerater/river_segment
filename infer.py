@@ -7,6 +7,9 @@ Usage:
 
     # LoRA model
     python infer.py --lora_ckpt best_model.pth --adapt_sam_type 1 --img_size 1024 --num_classes 1 --rank 4
+
+    # Learnable Prompt (no box)
+    python infer.py --lora_ckpt best_model.pth --adapt_sam_type 2 --img_size 1024 --num_classes 1
 """
 import os
 import sys
@@ -21,6 +24,7 @@ import torch.backends.cudnn as cudnn
 from importlib import import_module
 from tqdm.contrib import tzip
 
+from learnable_prompt_sam import LearnablePromptSAM
 from MobileSAM.mobile_sam import sam_model_registry
 
 from PIL import Image
@@ -60,12 +64,16 @@ def inference(args, multimask_output, model):
     with torch.no_grad():
         for (i_batch, sampled_batch), img_prefix in tzip(enumerate(testloader), img_prefixs):
             image, label, prompt = sampled_batch
-            image, label, prompt = image.cuda(), label.cuda(), prompt.cuda()
+            image, label = image.cuda(), label.cuda()
             label = label.squeeze(0)
             gt = label.cpu().detach().numpy()
 
-            outputs = model(image, multimask_output, args.img_size, prompt)
-            output_masks = outputs['masks']
+            if args.adapt_sam_type == 2:
+                output_masks = model(image)
+            else:
+                prompt = prompt.cuda()
+                outputs = model(image, multimask_output, args.img_size, prompt)
+                output_masks = outputs['masks']
 
             out = torch.argmax(torch.softmax(output_masks, dim=1), dim=1).squeeze(0)
             prediction = out.cpu().detach().numpy()
@@ -119,7 +127,7 @@ if __name__ == '__main__':
     parser.add_argument('--rank', type=int, default=4, help='Rank for LoRA adaptation')
     parser.add_argument('--module', type=str, default='sam_lora_image_encoder')
     parser.add_argument('--adapt_sam_type', type=int, default=0,
-                        help='0: Full_finetune; 1: LoRA')
+                        help='0: Full_finetune; 1: LoRA; 2: LearnablePrompt (no box)')
 
     args = parser.parse_args()
 
@@ -157,6 +165,12 @@ if __name__ == '__main__':
         net = pkg.LoRA_Sam(sam, args.rank).cuda()
         assert args.lora_ckpt is not None
         net.load_lora_parameters(args.lora_ckpt)
+    elif args.adapt_sam_type == 2:
+        print('Using Learnable Prompt SAM!')
+        sam = sam.cuda()
+        net = LearnablePromptSAM(sam=sam, num_classes=args.num_classes + 1)
+        net = net.cuda()
+        net.load_state_dict(torch.load(args.lora_ckpt))
     else:
         raise ValueError(f'Unknown adapt_sam_type: {args.adapt_sam_type}')
 
