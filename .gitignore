@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/
+
+# Model weights (large files)
+*.pth
+*.pt
+checkpoints/
+
+# Output results
+output/
+experiment/
+
+# Text output artifacts
+WGSD_samwater_*.txt
+
+# Subproject (ignored entirely)
+MobileSAM/
+
+# System
+Thumbs.db
+.DS_Store
+
+data/
+
+infer_results/
+
+output/
+
