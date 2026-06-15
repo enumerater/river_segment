@@ -40,8 +40,16 @@ class MultiClassVOCSegmentation(data.Dataset):
         img = Image.open(self.img_files[index])
         target = Image.open(self.gt_files[index])
         with open(self.txt_files[index], 'r') as file:
-            values_str = file.read().strip()
-            values = [float(v) for v in values_str.split(',')]
+            content = file.read().strip()
+            # Handle both single-line and multi-line box files
+            values_str = content.replace('\n', ',')
+            values = [float(v) for v in values_str.split(',') if v.strip()]
+        # If there are multiple boxes (N*4 values), keep only the largest one by area
+        if len(values) > 4:
+            boxes_list = [values[i:i+4] for i in range(0, len(values), 4)]
+            areas = [(b[2] - b[0]) * (b[3] - b[1]) for b in boxes_list]
+            best = boxes_list[areas.index(max(areas))]
+            values = best
         tensor_data = torch.tensor([values], device='cpu')
         img, target = self.transforms(img, target)
         return img, target ,tensor_data
