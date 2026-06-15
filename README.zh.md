@@ -39,13 +39,16 @@ python train.py --adapt_sam_type 1 --batch_size 1 --max_epochs 10 --img_size 102
 ### 批量测试
 
 ```bash
-python infer.py --lora_ckpt best_model.pth --adapt_sam_type 0 --img_size 1024 --num_classes 1
+python infer.py --lora_ckpt C:\Users\enumerate\Downloads\best_model.pth --adapt_sam_type 1 --img_size 1024 --num_classes 1 --rank 4 --label_dir data/VOCdevkit/VOC2012/GD_Label
+--text_prompt "waterbody"  
+--gd_ckpt checkpoints/groundingdino_swinb_cogcoor.pth --gd_config E:\work\seg\GroundingDINO\groundingdino\config\GroundingDINO_SwinB_cfg.py
 ```
 
 ### 单图推理 + 可视化
 
 ```bash
-python infer_one.py --image_path path/to/image.jpg --lora_ckpt best_model.pth --adapt_sam_type 0 --img_size 1024
+python infer_one.py --image_path data/VOCdevkit/VOC2012/JPEGImages/water_body_2275.jpg  --lora_ckpt C:\Users\enumerate\Downloads\best_model.pth --adapt_sam_type 1 --img_size 1024 --text_prompt "waterbody" --gd_ckpt checkpoints/groundingdino_swinb_cogcoor.pth --gd_config E:\work\seg\GroundingDINO\groundingdino\config\GroundingDINO_SwinB_cfg.py
+
 ```
 
 ## 模型类型

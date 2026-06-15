@@ -184,19 +184,26 @@ def mean_iou(
     all_iou = total_area_intersect.sum() / total_area_union.sum()
     iou = total_area_intersect / total_area_union
     acc = total_area_intersect / total_area_label
-    
-#     logging.info(f'------------- IoU for each Category -------------')
-#     for cls_name, cls_iou in zip(class_names, iou):
-#         logging.info(f'{cls_name}:  {cls_iou}')
-#     logging.info(f'-------------------------------------------------')
-    
+    precision = total_area_intersect / total_area_pred_label
+    recall = total_area_intersect / total_area_label
+    f1 = 2 * precision * recall / (precision + recall + 1e-6)
+
     metrics["mean_iou"] = np.nanmean(iou)
     metrics["mean_accuracy"] = np.nanmean(acc)
+    metrics["mean_precision"] = np.nanmean(precision)
+    metrics["mean_recall"] = np.nanmean(recall)
+    metrics["mean_f1"] = np.nanmean(f1)
     metrics["overall_accuracy"] = all_acc
     metrics["iou"] = iou
     metrics["acc"] = acc
+    metrics["precision"] = precision
+    metrics["recall"] = recall
+    metrics["f1"] = f1
     metrics["per_category_iou"] = iou
     metrics["per_category_accuracy"] = acc
+    metrics["per_category_precision"] = precision
+    metrics["per_category_recall"] = recall
+    metrics["per_category_f1"] = f1
 
     if nan_to_num is not None:
         metrics = dict(

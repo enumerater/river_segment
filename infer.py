@@ -98,16 +98,26 @@ def inference(args, multimask_output, model, gd_wrapper=None):
         miou = eval_metrics["mean_iou"]
         macc = eval_metrics["mean_accuracy"]
         oacc = eval_metrics["overall_accuracy"]
+        mprecision = eval_metrics["mean_precision"]
+        mrecall = eval_metrics["mean_recall"]
+        mf1 = eval_metrics["mean_f1"]
         iou_per_cat = eval_metrics["per_category_iou"]
         acc_per_cat = eval_metrics["per_category_accuracy"]
+        precision_per_cat = eval_metrics["per_category_precision"]
+        recall_per_cat = eval_metrics["per_category_recall"]
+        f1_per_cat = eval_metrics["per_category_f1"]
 
     logging.info(f'--------------------------------------- Evaluating Metrics ---------------------------------------')
-    for cls_name, cls_acc, cls_iou in zip(meta_info['classes'], acc_per_cat, iou_per_cat):
+    for cls_name, cls_iou, cls_acc, cls_prec, cls_rec, cls_f1 in zip(
+            meta_info['classes'], iou_per_cat, acc_per_cat, precision_per_cat, recall_per_cat, f1_per_cat):
         logging.info(
-            f'{cls_name}:  acc:{np.round(np.nanmean(cls_acc) * 100, 2)}  iou:{np.round(np.nanmean(cls_iou) * 100, 2)}')
+            f'{cls_name}:  acc:{np.round(np.nanmean(cls_acc) * 100, 2)}  iou:{np.round(np.nanmean(cls_iou) * 100, 2)}  '
+            f'prec:{np.round(np.nanmean(cls_prec) * 100, 2)}  rec:{np.round(np.nanmean(cls_rec) * 100, 2)}  '
+            f'f1:{np.round(np.nanmean(cls_f1) * 100, 2)}')
     logging.info(f'--------------------------------------------------------------------------------------------------')
-    logging.info("Testing Finished! mIoU={}, mAcc={}, oAcc={}".format(
-        np.round(np.nanmean(miou) * 100, 2), np.round(np.nanmean(macc) * 100, 2), np.round(np.nanmean(oacc) * 100, 2)))
+    logging.info("Testing Finished! mIoU={}, mAcc={}, oAcc={}, mPrec={}, mRec={}, mF1={}".format(
+        np.round(np.nanmean(miou) * 100, 2), np.round(np.nanmean(macc) * 100, 2), np.round(np.nanmean(oacc) * 100, 2),
+        np.round(np.nanmean(mprecision) * 100, 2), np.round(np.nanmean(mrecall) * 100, 2), np.round(np.nanmean(mf1) * 100, 2)))
     logging.info(f'--------------------------------------------------------------------------------------------------')
     return 1
 
