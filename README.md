@@ -1,6 +1,6 @@
 # SAMUSS — SAM-based Segmentation
 
-Fine-tuning SAM (Segment Anything Model) for semantic segmentation. Supports full fine-tune and LoRA.
+Fine-tuning SAM (Segment Anything Model) for semantic segmentation with LoRA.
 
 ## Project Structure
 
@@ -13,7 +13,6 @@ Fine-tuning SAM (Segment Anything Model) for semantic segmentation. Supports ful
 ├── sam_lora_image_encoder.py      # LoRA SAM model
 ├── eval_metrics.py                # Evaluation metrics (mIoU, mAcc)
 ├── utils.py                       # Loss functions (Dice, Focal)
-├── convert_checkpoint.py          # Checkpoint format converter
 ├── datasets/                      # Dataset loaders & transforms
 │   ├── dataset_custom.py          # VOC multi-class / binary dataset
 │   └── transforms.py              # Image transforms
@@ -29,29 +28,22 @@ Fine-tuning SAM (Segment Anything Model) for semantic segmentation. Supports ful
 ### Train
 
 ```bash
-# Full fine-tune
-python train.py --adapt_sam_type 0 --batch_size 1 --max_epochs 10 --img_size 1024 --num_classes 1
-
-# LoRA
-python train.py --adapt_sam_type 1 --batch_size 1 --max_epochs 10 --img_size 1024 --num_classes 1 --rank 4
+# LoRA fine-tune
+python train.py --batch_size 1 --max_epochs 10 --img_size 1024 --num_classes 1 --rank 4
 ```
 
 ### Batch Test
 
 ```bash
-python infer.py --lora_ckpt best_model.pth --adapt_sam_type 0 --img_size 1024 --num_classes 1
+python infer.py --lora_ckpt best_model.pth --img_size 1024 --num_classes 1 --rank 4
 ```
 
 ### Single-Image Inference + Visualization
 
 ```bash
-python infer_one.py --image_path path/to/image.jpg --lora_ckpt best_model.pth --adapt_sam_type 0 --img_size 1024
+python infer_one.py --image_path path/to/image.jpg --lora_ckpt best_model.pth --img_size 1024 --num_classes 1 --rank 4
 ```
 
-## Model Types
+## Model
 
-| Type | Mode | Description | Need Box |
-|------|------|-------------|----------|
-| 0 | Full Fine-tune | `model.load_state_dict()` | Yes |
-| 1 | LoRA | `model.load_lora_parameters()` | Yes |
-| 2 | Learnable Prompt | `model.load_state_dict()` | **No** |
+This project uses **LoRA** (Low-Rank Adaptation) to fine-tune SAM. Only the attention q/k/v projection matrices in the image encoder are adapted via low-rank decomposition, while the prompt encoder and mask decoder are fully fine-tuned. Checkpoints are saved/loaded with `model.save_lora_parameters()` / `model.load_lora_parameters()`.

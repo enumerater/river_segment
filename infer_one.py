@@ -1,14 +1,14 @@
 """
-Single-image inference & visualization for SAM-based segmentation.
+Single-image inference & visualization for SAM-based LoRA segmentation.
 
 Usage:
     # Default: full-image box prompt
     python infer_one.py --image_path path/to/image.jpg --lora_ckpt best_model.pth
-                         --img_size 1024 --adapt_sam_type 0 --num_classes 1
+                         --img_size 1024 --num_classes 1 --rank 4
 
     # Grounding DINO: text prompt generates bounding boxes automatically
     python infer_one.py --image_path path/to/image.jpg --lora_ckpt best_model.pth
-                         --adapt_sam_type 1 --img_size 1024 --num_classes 1 --rank 4
+                         --img_size 1024 --num_classes 1 --rank 4
                          --text_prompt "waterbody"
                          --gd_ckpt checkpoints/groundingdino_swinb_cogcoor.pth
                          --gd_config GroundingDINO/groundingdino/config/GroundingDINO_SwinB.cfg.py
@@ -20,7 +20,6 @@ import sys
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-from importlib import import_module
 from PIL import Image
 import matplotlib
 matplotlib.use('Agg')
@@ -28,7 +27,7 @@ import matplotlib.pyplot as plt
 
 from torchvision.transforms import functional as TF
 
-from learnable_prompt_sam import LearnablePromptSAM
+from sam_lora_image_encoder import LoRA_Sam
 from MobileSAM.mobile_sam import sam_model_registry
 from grounding_dino_wrapper import GroundingDINOWrapper
 
@@ -72,39 +71,24 @@ def build_model(args):
     )
     low_res = img_embedding_size * 4
 
-    if args.adapt_sam_type == 0:
-        net = sam.cuda()
-        net.load_state_dict(torch.load(args.lora_ckpt))
-    elif args.adapt_sam_type == 1:
-        pkg = import_module(args.module)
-        net = pkg.LoRA_Sam(sam, args.rank).cuda()
-        assert args.lora_ckpt is not None
-        net.load_lora_parameters(args.lora_ckpt)
-    elif args.adapt_sam_type == 2:
-        sam = sam.cuda()
-        net = LearnablePromptSAM(sam=sam, num_classes=args.num_classes + 1)
-        net = net.cuda()
-        net.load_state_dict(torch.load(args.lora_ckpt))
-    else:
-        raise ValueError(f'Unknown adapt_sam_type: {args.adapt_sam_type}')
+    net = LoRA_Sam(sam, args.rank).cuda()
+    assert args.lora_ckpt is not None
+    net.load_lora_parameters(args.lora_ckpt)
 
     net.eval()
     return net, low_res
 
 
-def predict(net, image, prompt, multimask_output, img_size, adapt_sam_type):
+def predict(net, image, prompt, multimask_output, img_size):
     with torch.no_grad():
-        if adapt_sam_type == 2:
-            output_masks = net(image)
-        else:
-            outputs = net(image, multimask_output, img_size, prompt)
-            output_masks = outputs['masks']
+        outputs = net(image, multimask_output, img_size, prompt)
+        output_masks = outputs['masks']
         probs = torch.softmax(output_masks, dim=1)
         pred = torch.argmax(probs, dim=1).squeeze(0)
     return pred.cpu().numpy(), probs.cpu()
 
 
-def visualize(image_tensor, pred_mask, probs, orig_size, save_path):
+def visualize(image_tensor, pred_mask, probs, orig_size, save_path, boxes=None):
     mean = np.array([0.485, 0.456, 0.406])
     std = np.array([0.229, 0.224, 0.225])
     img_np = image_tensor.squeeze(0).cpu().numpy().transpose(1, 2, 0)
@@ -121,16 +105,32 @@ def visualize(image_tensor, pred_mask, probs, orig_size, save_path):
         conf_map = probs[0, 0].numpy()
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+    # --- Left: input image with bounding boxes ---
     axes[0].imshow(img_np)
-    axes[0].set_title('Input Image')
+    if boxes is not None:
+        for box in boxes:
+            x1, y1, x2, y2 = box
+            rect = plt.Rectangle((x1, y1), x2 - x1, y2 - y1,
+                                 fill=False, edgecolor='red', linewidth=2, linestyle='--')
+            axes[0].add_patch(rect)
+    axes[0].set_title('Input Image + GD Boxes' if boxes is not None else 'Input Image')
     axes[0].axis('off')
 
+    # --- Middle: prediction overlay with bounding boxes ---
     overlay = img_np.copy()
     overlay[pred_resized == 1] = [0, 0.8, 0]
     axes[1].imshow(overlay)
-    axes[1].set_title('Prediction Overlay')
+    if boxes is not None:
+        for box in boxes:
+            x1, y1, x2, y2 = box
+            rect = plt.Rectangle((x1, y1), x2 - x1, y2 - y1,
+                                 fill=False, edgecolor='red', linewidth=2, linestyle='--')
+            axes[1].add_patch(rect)
+    axes[1].set_title('Prediction Overlay + GD Boxes' if boxes is not None else 'Prediction Overlay')
     axes[1].axis('off')
 
+    # --- Right: confidence map ---
     axes[2].imshow(conf_map, cmap='viridis')
     axes[2].set_title('Foreground Confidence')
     axes[2].axis('off')
@@ -151,11 +151,8 @@ def main():
     parser.add_argument('--lora_ckpt', type=str, default='best_model.pth', help='Fine-tuned checkpoint')
     parser.add_argument('--vit_name', type=str, default='vit_b', help='ViT model name')
     parser.add_argument('--rank', type=int, default=4, help='LoRA rank')
-    parser.add_argument('--module', type=str, default='sam_lora_image_encoder', help='LoRA module')
-    parser.add_argument('--adapt_sam_type', type=int, default=0,
-                        help='0: Full_finetune; 1: LoRA; 2: LearnablePrompt (no box)')
     parser.add_argument('--prompt', type=str, default=None,
-                        help='Bounding box prompt (N*4 values). Default: full-image box. Ignored for type 2.')
+                        help='Bounding box prompt (N*4 values). Default: full-image box.')
     # Grounding DINO arguments (mutually exclusive with --prompt)
     parser.add_argument('--text_prompt', type=str, default=None,
                         help='Text prompt for Grounding DINO (e.g. "waterbody"). Overrides --prompt when set.')
@@ -184,7 +181,7 @@ def main():
 
     os.makedirs(args.save_dir, exist_ok=True)
 
-    print(f'Building model (adapt_sam_type={args.adapt_sam_type})...')
+    print('Building LoRA model...')
     net, low_res = build_model(args)
 
     print(f'Loading image: {args.image_path}')
@@ -216,7 +213,7 @@ def main():
     prompt = prompt.cuda()
 
     multimask_output = args.num_classes > 1
-    pred_mask, probs = predict(net, image_tensor, prompt, multimask_output, args.img_size, args.adapt_sam_type)
+    pred_mask, probs = predict(net, image_tensor, prompt, multimask_output, args.img_size)
 
     out_name = os.path.splitext(os.path.basename(args.image_path))[0]
     mask_path = os.path.join(args.save_dir, f'{out_name}_mask.png')
@@ -225,7 +222,9 @@ def main():
     print(f'Mask saved to {mask_path}')
 
     vis_path = os.path.join(args.save_dir, f'{out_name}_vis.png')
-    visualize(image_tensor, pred_mask, probs, orig_size, vis_path)
+    # Extract boxes for visualization (SAM coordinates)
+    boxes = prompt.squeeze(0).cpu().numpy() if prompt is not None and prompt.shape[1] > 0 else None
+    visualize(image_tensor, pred_mask, probs, orig_size, vis_path, boxes=boxes)
 
 
 if __name__ == '__main__':

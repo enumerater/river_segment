@@ -1,8 +1,5 @@
 [11:20:29.471] Namespace(root_path='data/VOCdevkit/VOC2012', output='output/WGSD', dataset='Custom_MultiClass', num_classes=1, max_iterations=30000, max_epochs=200, stop_epoch=100, batch_size=4, n_gpu=1, deterministic=1, base_lr=0.001, img_size=1024, seed=1234, vit_name='vit_b', ckpt='checkpoints/sam_vit_b_01ec64.pth', lora_ckpt=None, rank=4, warmup=False, warmup_period=250, AdamW=False, module='sam_lora_image_encoder', dice_param=0.75, lr_exp=0.9, weight_decay=0.1, save_weight_interval=1, adapt_sam_type=1, label_dir='data/VOCdevkit/VOC2012/GD_Label', is_pretrain=True, exp='Custom_MultiClass_1024')
 [11:20:29.477] 171 iterations per epoch. 34200 max iterations 
-
-
-
 [11:23:54.172] --------------------------------------- Evaluating Metrics ---------------------------------------
 [11:23:54.172] BG [Background]:  acc:87.35  iou:78.11
 [11:23:54.172] WB [WaterBody]:  acc:70.29  iou:53.36
@@ -11,9 +8,6 @@
 [11:23:54.173] --------------------------------------------------------------------------------------------------
 [11:23:54.204] save model to output/WGSD/Custom_MultiClass_1024_pretrain_vit_b_epo200_bs4_lr0.001_dice0.75/best_model.pth
 [11:23:54.233] save model to output/WGSD/Custom_MultiClass_1024_pretrain_vit_b_epo200_bs4_lr0.001_dice0.75/epoch_0.pth
-
-
-
 [11:27:12.152] --------------------------------------- Evaluating Metrics ---------------------------------------
 [11:27:12.153] BG [Background]:  acc:82.64  iou:78.55
 [11:27:12.153] WB [WaterBody]:  acc:86.95  iou:60.56
@@ -22,9 +16,6 @@
 [11:27:12.153] --------------------------------------------------------------------------------------------------
 [11:27:12.190] save model to output/WGSD/Custom_MultiClass_1024_pretrain_vit_b_epo200_bs4_lr0.001_dice0.75/best_model.pth
 [11:27:12.221] save model to output/WGSD/Custom_MultiClass_1024_pretrain_vit_b_epo200_bs4_lr0.001_dice0.75/epoch_1.pth
-
-
-
 [11:30:28.694] --------------------------------------- Evaluating Metrics ---------------------------------------
 [11:30:28.695] BG [Background]:  acc:88.07  iou:84.02
 [11:30:28.695] WB [WaterBody]:  acc:87.89  iou:67.63
@@ -33,10 +24,6 @@
 [11:30:28.695] --------------------------------------------------------------------------------------------------
 [11:30:28.733] save model to output/WGSD/Custom_MultiClass_1024_pretrain_vit_b_epo200_bs4_lr0.001_dice0.75/best_model.pth
 [11:30:28.763] save model to output/WGSD/Custom_MultiClass_1024_pretrain_vit_b_epo200_bs4_lr0.001_dice0.75/epoch_2.pth
-
-
-
-
 [11:33:44.472] --------------------------------------- Evaluating Metrics ---------------------------------------
 [11:33:44.472] BG [Background]:  acc:91.05  iou:86.13
 [11:33:44.473] WB [WaterBody]:  acc:85.68  iou:69.96

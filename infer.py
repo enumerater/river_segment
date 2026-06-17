@@ -2,17 +2,11 @@
 Batch inference & evaluation on test set.
 
 Usage:
-    # Full fine-tune model
-    python infer.py --lora_ckpt best_model.pth --adapt_sam_type 0 --img_size 1024 --num_classes 1
-
     # LoRA model
-    python infer.py --lora_ckpt best_model.pth --adapt_sam_type 1 --img_size 1024 --num_classes 1 --rank 4
-
-    # Learnable Prompt (no box)
-    python infer.py --lora_ckpt best_model.pth --adapt_sam_type 2 --img_size 1024 --num_classes 1
+    python infer.py --lora_ckpt best_model.pth --img_size 1024 --num_classes 1 --rank 4
 
     # Grounding DINO + LoRA (online box generation)
-    python infer.py --lora_ckpt best_model.pth --adapt_sam_type 1 --img_size 1024 --num_classes 1 --rank 4 \
+    python infer.py --lora_ckpt best_model.pth --img_size 1024 --num_classes 1 --rank 4 \
         --text_prompt "waterbody" --gd_ckpt checkpoints/groundingdino_swinb_cogcoor.pth \
         --gd_config GroundingDINO/groundingdino/config/GroundingDINO_SwinB.cfg.py
 """
@@ -26,10 +20,9 @@ import random
 import torch
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
-from importlib import import_module
 from tqdm.contrib import tzip
 
-from learnable_prompt_sam import LearnablePromptSAM
+from sam_lora_image_encoder import LoRA_Sam
 from MobileSAM.mobile_sam import sam_model_registry
 from grounding_dino_wrapper import GroundingDINOWrapper
 
@@ -74,18 +67,15 @@ def inference(args, multimask_output, model, gd_wrapper=None):
             label = label.squeeze(0)
             gt = label.cpu().detach().numpy()
 
-            if args.adapt_sam_type == 2:
-                output_masks = model(image)
-            else:
-                if gd_wrapper is not None:
-                    pil_img = Image.open(os.path.join(img_path, img_prefix + '.jpg')).convert('RGB')
-                    orig_w, orig_h = pil_img.size
-                    boxes = gd_wrapper.generate_boxes(pil_img, args.text_prompt)
-                    prompt = GroundingDINOWrapper.boxes_original_to_sam(boxes, (orig_w, orig_h), args.img_size)
-                    prompt = prompt.view(1, -1)
-                prompt = prompt.cuda()
-                outputs = model(image, multimask_output, args.img_size, prompt)
-                output_masks = outputs['masks']
+            if gd_wrapper is not None:
+                pil_img = Image.open(os.path.join(img_path, img_prefix + '.jpg')).convert('RGB')
+                orig_w, orig_h = pil_img.size
+                boxes = gd_wrapper.generate_boxes(pil_img, args.text_prompt)
+                prompt = GroundingDINOWrapper.boxes_original_to_sam(boxes, (orig_w, orig_h), args.img_size)
+                prompt = prompt.view(1, -1)
+            prompt = prompt.cuda()
+            outputs = model(image, multimask_output, args.img_size, prompt)
+            output_masks = outputs['masks']
 
             out = torch.argmax(torch.softmax(output_masks, dim=1), dim=1).squeeze(0)
             prediction = out.cpu().detach().numpy()
@@ -147,9 +137,6 @@ if __name__ == '__main__':
     parser.add_argument('--lora_ckpt', type=str, required=True, help='The fine-tuned checkpoint')
     parser.add_argument('--vit_name', type=str, default='vit_b', help='Select one vit model')
     parser.add_argument('--rank', type=int, default=4, help='Rank for LoRA adaptation')
-    parser.add_argument('--module', type=str, default='sam_lora_image_encoder')
-    parser.add_argument('--adapt_sam_type', type=int, default=0,
-                        help='0: Full_finetune; 1: LoRA; 2: LearnablePrompt (no box)')
     parser.add_argument('--label_dir', type=str, default='data/VOCdevkit/VOC2012/TxtLabel',
                         help='Directory with box label .txt files')
     # Grounding DINO arguments
@@ -188,24 +175,10 @@ if __name__ == '__main__':
                                                                 checkpoint=args.ckpt, pixel_mean=[0, 0, 0],
                                                                 pixel_std=[1, 1, 1])
 
-    if args.adapt_sam_type == 0:
-        print('Using Full Fine-tune!')
-        net = sam.cuda()
-        net.load_state_dict(torch.load(args.lora_ckpt))
-    elif args.adapt_sam_type == 1:
-        print('Using LoRA!')
-        pkg = import_module(args.module)
-        net = pkg.LoRA_Sam(sam, args.rank).cuda()
-        assert args.lora_ckpt is not None
-        net.load_lora_parameters(args.lora_ckpt)
-    elif args.adapt_sam_type == 2:
-        print('Using Learnable Prompt SAM!')
-        sam = sam.cuda()
-        net = LearnablePromptSAM(sam=sam, num_classes=args.num_classes + 1)
-        net = net.cuda()
-        net.load_state_dict(torch.load(args.lora_ckpt))
-    else:
-        raise ValueError(f'Unknown adapt_sam_type: {args.adapt_sam_type}')
+    print('Using LoRA!')
+    net = LoRA_Sam(sam, args.rank).cuda()
+    assert args.lora_ckpt is not None
+    net.load_lora_parameters(args.lora_ckpt)
 
     Total_params = 0
     Trainable_params = 0

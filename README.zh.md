@@ -1,6 +1,6 @@
 # SAMUSS — 基于SAM的语义分割
 
-对 SAM（Segment Anything Model）进行微调，用于语义分割。支持全参数微调和 LoRA 微调。
+对 SAM（Segment Anything Model）进行 LoRA 微调，用于语义分割。
 
 ## 项目结构
 
@@ -13,7 +13,6 @@
 ├── sam_lora_image_encoder.py      # LoRA SAM 模型
 ├── eval_metrics.py                # 评估指标（mIoU, mAcc）
 ├── utils.py                       # 损失函数（Dice, Focal）
-├── convert_checkpoint.py          # 权重格式转换
 ├── datasets/                      # 数据集加载 & 数据增强
 │   ├── dataset_custom.py          # VOC 多类 / 二类数据集
 │   └── transforms.py              # 图像变换
@@ -29,17 +28,14 @@
 ### 训练
 
 ```bash
-# 全量微调
-python train.py --adapt_sam_type 0 --batch_size 1 --max_epochs 10 --img_size 1024 --num_classes 1
-
-# LoRA
-python train.py --adapt_sam_type 1 --batch_size 1 --max_epochs 10 --img_size 1024 --num_classes 1 --rank 4
+# LoRA 微调
+python train.py --batch_size 1 --max_epochs 10 --img_size 1024 --num_classes 1 --rank 4
 ```
 
 ### 批量测试
 
 ```bash
-python infer.py --lora_ckpt C:\Users\enumerate\Downloads\best_model.pth --adapt_sam_type 1 --img_size 1024 --num_classes 1 --rank 4 --label_dir data/VOCdevkit/VOC2012/GD_Label
+python infer.py --lora_ckpt best_model.pth --img_size 1024 --num_classes 1 --rank 4 --label_dir data/VOCdevkit/VOC2012/GD_Label
 --text_prompt "waterbody"  
 --gd_ckpt checkpoints/groundingdino_swinb_cogcoor.pth --gd_config E:\work\seg\GroundingDINO\groundingdino\config\GroundingDINO_SwinB_cfg.py
 ```
@@ -47,14 +43,10 @@ python infer.py --lora_ckpt C:\Users\enumerate\Downloads\best_model.pth --adapt_
 ### 单图推理 + 可视化
 
 ```bash
-python infer_one.py --image_path data/VOCdevkit/VOC2012/JPEGImages/water_body_2275.jpg  --lora_ckpt C:\Users\enumerate\Downloads\best_model.pth --adapt_sam_type 1 --img_size 1024 --text_prompt "waterbody" --gd_ckpt checkpoints/groundingdino_swinb_cogcoor.pth --gd_config E:\work\seg\GroundingDINO\groundingdino\config\GroundingDINO_SwinB_cfg.py
+python infer_one.py --image_path data/VOCdevkit/VOC2012/JPEGImages/water_body_8583.jpg  --lora_ckpt best_model.pth --img_size 1024 --text_prompt "waterbody" --gd_ckpt checkpoints/groundingdino_swinb_cogcoor.pth --gd_config E:\work\seg\GroundingDINO\groundingdino\config\GroundingDINO_SwinB_cfg.py
 
 ```
 
-## 模型类型
+## 模型
 
-| Type | 模式 | 加载方式 | 需要 Box |
-|------|------|---------|----------|
-| 0 | Full Fine-tune | `model.load_state_dict()` | 是 |
-| 1 | LoRA | `model.load_lora_parameters()` | 是 |
-| 2 | Learnable Prompt | `model.load_state_dict()` | **否** |
+本项目使用 **LoRA**（低秩适配）微调 SAM。只有图像编码器中注意力层的 q/k/v 投影矩阵通过低秩分解进行适配，提示编码器和掩码解码器则进行全参微调。权重通过 `model.save_lora_parameters()` / `model.load_lora_parameters()` 保存和加载。

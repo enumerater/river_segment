@@ -1,15 +1,8 @@
 """
-Train SAM for segmentation (Full fine-tune, LoRA, or LearnablePrompt).
+Train SAM for segmentation with LoRA fine-tuning.
 
 Usage:
-    # Full fine-tune
-    python train.py --adapt_sam_type 0 --batch_size 1 --max_epochs 10 --img_size 1024 --num_classes 1
-
-    # LoRA fine-tune
-    python train.py --adapt_sam_type 1 --batch_size 1 --max_epochs 10 --img_size 1024 --num_classes 1 --rank 4
-
-    # Learnable Prompt (no bounding box needed)
-    python train.py --adapt_sam_type 2 --batch_size 1 --max_epochs 10 --img_size 1024 --num_classes 1
+    python train.py --batch_size 1 --max_epochs 10 --img_size 1024 --num_classes 1 --rank 4
 """
 import argparse
 import logging
@@ -19,10 +12,7 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 
-from importlib import import_module
-
 from sam_lora_image_encoder import LoRA_Sam
-from learnable_prompt_sam import LearnablePromptSAM
 from MobileSAM.mobile_sam import sam_model_registry
 from trainer import trainer_custom
 
@@ -60,14 +50,10 @@ parser.add_argument('--warmup', default=False, help='If activated, warp up the l
 parser.add_argument('--warmup_period', type=int, default=250,
                     help='Warp up iterations, only valid whrn warmup is activated')
 parser.add_argument('--AdamW', action='store_true', help='If activated, use AdamW to finetune SAM model')
-parser.add_argument('--module', type=str,
-                    default='sam_lora_image_encoder')
 parser.add_argument('--dice_param', type=float, default=0.75)
 parser.add_argument('--lr_exp', type=float, default=0.9, help='The learning rate decay expotential')
 parser.add_argument("--weight_decay", default=0.1, type=float, help="weight decay for the optimizer")
 parser.add_argument('--save_weight_interval', type=int, default=1, help='the interval that save trained weight')
-parser.add_argument('--adapt_sam_type', type=int, default=0,
-                    help='0: Full_finetune; 1: LoRA; 2: LearnablePrompt (no box)')
 parser.add_argument('--label_dir', type=str, default='data/VOCdevkit/VOC2012/TxtLabel',
                     help='Directory with box label .txt files (default: TxtLabel, switch to GD_Label for GD boxes)')
 args = parser.parse_args()
@@ -114,24 +100,11 @@ if __name__ == "__main__":
     else:
         multimask_output = False
 
-    if args.adapt_sam_type == 0:
-        print('Using Full Fine-tune!')
-        net = sam.cuda()
-    elif args.adapt_sam_type == 1:
-        print('Using LoRA!')
-        pkg = import_module(args.module)
-        net = pkg.LoRA_Sam(sam, args.rank).cuda()
-    elif args.adapt_sam_type == 2:
-        print('Using Learnable Prompt SAM!')
-        sam = sam.cuda()
-        net = LearnablePromptSAM(sam=sam, num_classes=args.num_classes + 1)
-        net = net.cuda()
+    print('Using LoRA!')
+    net = LoRA_Sam(sam, args.rank).cuda()
 
     if args.lora_ckpt is not None:
-        if args.adapt_sam_type == 1:
-            net.load_lora_parameters(args.lora_ckpt)
-        else:
-            net.load_state_dict(torch.load(args.lora_ckpt))
+        net.load_lora_parameters(args.lora_ckpt)
 
     if args.num_classes > 1:
         multimask_output = True

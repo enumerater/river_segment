@@ -109,11 +109,8 @@ def trainer_custom(args, model, snapshot_path, multimask_output, low_res):
 
             assert image_batch.max() <= 3, f'image_batch max: {image_batch.max()}'
 
-            if args.adapt_sam_type == 2:
-                outputs = model(image_batch)
-            else:
-                outputs = model(image_batch, multimask_output, args.img_size, prompt)
-                outputs = outputs['masks']
+            outputs = model(image_batch, multimask_output, args.img_size, prompt)
+            outputs = outputs['masks']
 
             if args.dataset == 'Custom_MultiClass':
                 loss, loss_ce, loss_dice = calc_loss_multiclass(outputs, label_batch, ce_loss, dice_loss, args.dice_param)
@@ -154,11 +151,8 @@ def trainer_custom(args, model, snapshot_path, multimask_output, low_res):
                 label = label.squeeze(0)
                 gt = label.cpu().detach().numpy()
                 with torch.no_grad():
-                    if args.adapt_sam_type == 2:
-                        output_masks = model(image)
-                    else:
-                        outputs = model(image, multimask_output, args.img_size, prompt)
-                        output_masks = outputs['masks']
+                    outputs = model(image, multimask_output, args.img_size, prompt)
+                    output_masks = outputs['masks']
 
                     out = torch.argmax(torch.softmax(output_masks, dim=1), dim=1).squeeze(0)
                     prediction = out.cpu().detach().numpy()
@@ -194,36 +188,27 @@ def trainer_custom(args, model, snapshot_path, multimask_output, low_res):
         if current_miou > best_miou:
             best_miou = current_miou
             save_mode_path = os.path.join(snapshot_path, 'best_model.pth')
-            if args.adapt_sam_type == 1:
-                try:
-                    model.save_lora_parameters(save_mode_path)
-                except:
-                    model.module.save_lora_parameters(save_mode_path)
-            else:
-                torch.save(model.state_dict(), save_mode_path)
+            try:
+                model.save_lora_parameters(save_mode_path)
+            except:
+                model.module.save_lora_parameters(save_mode_path)
             logging.info("save model to {}".format(save_mode_path))
 
         save_interval = args.save_weight_interval
         if (epoch_num + 1) % save_interval == 0:
             save_mode_path = os.path.join(snapshot_path, 'epoch_' + str(epoch_num) + '.pth')
-            if args.adapt_sam_type == 1:
-                try:
-                    model.save_lora_parameters(save_mode_path)
-                except:
-                    model.module.save_lora_parameters(save_mode_path)
-            else:
-                torch.save(model.state_dict(), save_mode_path)
+            try:
+                model.save_lora_parameters(save_mode_path)
+            except:
+                model.module.save_lora_parameters(save_mode_path)
             logging.info("save model to {}".format(save_mode_path))
 
         if epoch_num >= max_epoch - 1 or epoch_num >= stop_epoch - 1:
             save_mode_path = os.path.join(snapshot_path, 'epoch_' + str(epoch_num) + '.pth')
-            if args.adapt_sam_type == 1:
-                try:
-                    model.save_lora_parameters(save_mode_path)
-                except:
-                    model.module.save_lora_parameters(save_mode_path)
-            else:
-                torch.save(model.state_dict(), save_mode_path)
+            try:
+                model.save_lora_parameters(save_mode_path)
+            except:
+                model.module.save_lora_parameters(save_mode_path)
             logging.info("save model to {}".format(save_mode_path))
             iterator.close()
             break
