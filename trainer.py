@@ -3,14 +3,10 @@ import logging
 import os
 import random
 import sys
-import time
-import math
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import datasets
-from typing import Dict, Optional
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from tqdm import tqdm
@@ -18,8 +14,7 @@ from tqdm import tqdm
 from eval_metrics import mean_iou
 from datasets.dataset_custom import MultiClassVOCSegmentation, BinaClassVOCSegmentation
 
-from torch.nn.modules.loss import CrossEntropyLoss, BCEWithLogitsLoss
-from utils import DiceLoss, Focal_loss, BinaryDiceLoss
+from utils import DiceLoss, Focal_loss
 
 from MobileSAM.mobile_sam import sam_model_registry
 

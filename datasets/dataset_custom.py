@@ -4,7 +4,6 @@ import numpy as np
 import torch
 from datasets import transforms
 from PIL import Image
-import matplotlib.pyplot as plt
 
 
 class MultiClassVOCSegmentation(data.Dataset):

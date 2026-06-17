@@ -35,15 +35,13 @@ python train.py --batch_size 1 --max_epochs 10 --img_size 1024 --num_classes 1 -
 ### 批量测试
 
 ```bash
-python infer.py --lora_ckpt best_model.pth --img_size 1024 --num_classes 1 --rank 4 --label_dir data/VOCdevkit/VOC2012/GD_Label
---text_prompt "waterbody"  
---gd_ckpt checkpoints/groundingdino_swinb_cogcoor.pth --gd_config E:\work\seg\GroundingDINO\groundingdino\config\GroundingDINO_SwinB_cfg.py
+python infer.py --lora_ckpt E:\work\seg\samuss\models\best_model.pth --img_size 1024 --num_classes 1 --rank 4 --label_dir data/VOCdevkit/VOC2012/GD_Label --text_prompt "waterbody" --gd_ckpt checkpoints/groundingdino_swinb_cogcoor.pth --gd_config E:\work\seg\GroundingDINO\groundingdino\config\GroundingDINO_SwinB_cfg.py
 ```
 
 ### 单图推理 + 可视化
 
 ```bash
-python infer_one.py --image_path data/VOCdevkit/VOC2012/JPEGImages/water_body_8583.jpg  --lora_ckpt best_model.pth --img_size 1024 --text_prompt "waterbody" --gd_ckpt checkpoints/groundingdino_swinb_cogcoor.pth --gd_config E:\work\seg\GroundingDINO\groundingdino\config\GroundingDINO_SwinB_cfg.py
+python infer_one.py --image_path data/VOCdevkit/VOC2012/JPEGImages/00256.jpg  --lora_ckpt E:\work\seg\samuss\models\best_model.pth --img_size 1024 --text_prompt "waterbody" --gd_ckpt checkpoints/groundingdino_swinb_cogcoor.pth --gd_config E:\work\seg\GroundingDINO\groundingdino\config\GroundingDINO_SwinB_cfg.py
 
 ```
 
