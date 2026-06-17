@@ -1,8 +1,8 @@
-matplotlib
-numpy
-Pillow
-scipy
-timm
-torch
-torchvision
-tqdm
+matplotlib>=3.5.0
+numpy>=1.21.0
+Pillow>=9.0.0
+scipy>=1.7.0
+timm>=0.6.0
+torch>=1.13.0
+torchvision>=0.14.0
+tqdm>=4.60.0

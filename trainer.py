@@ -28,6 +28,29 @@ def calc_loss_multiclass(outputs, low_res_label_batch, ce_loss, dice_loss, dice_
 
 
 def trainer_custom(args, model, snapshot_path, multimask_output, low_res):
+    """Train SAM with LoRA fine-tuning for semantic segmentation.
+
+    This function orchestrates the full training loop including:
+        - Data loading from VOC dataset (train/val splits)
+        - Loss computation (Focal loss + Dice loss)
+        - Learning rate scheduling (warmup + exponential decay)
+        - Per-epoch validation with mIoU / mAcc / oAcc metrics
+        - Best model saving based on validation mIoU
+        - Early stopping when validation mIoU does not improve for `patience` epochs
+
+    Args:
+        args: Parsed command-line arguments (Namespace).
+            Required fields: base_lr, num_classes, batch_size, n_gpu, dataset,
+            img_size, dice_param, warmup, warmup_period, AdamW, weight_decay,
+            lr_exp, max_epochs, stop_epoch, label_dir, seed.
+        model (LoRA_Sam): The LoRA-wrapped SAM model.
+        snapshot_path (str): Directory path for saving logs and checkpoints.
+        multimask_output (bool): Whether to output multiple masks.
+        low_res (int): Low-resolution size for SAM mask output.
+
+    Returns:
+        str: "Training Finished!" on successful completion.
+    """
 
     logging.basicConfig(filename=snapshot_path + "/log.txt", level=logging.INFO,
                         format='[%(asctime)s.%(msecs)03d] %(message)s', datefmt='%H:%M:%S')
@@ -95,7 +118,9 @@ def trainer_custom(args, model, snapshot_path, multimask_output, low_res):
     logging.info("{} iterations per epoch. {} max iterations ".format(len(trainloader), max_iterations))
 
     best_performance = 0.0
-    best_miou=0.0
+    best_miou = 0.0
+    early_stop_patience = 10  # epochs of no improvement before early stopping
+    early_stop_counter = 0
     iterator = tqdm(range(max_epoch), ncols=70)
     for epoch_num in iterator:
         for i_batch, sampled_batch in enumerate(trainloader):
@@ -182,12 +207,16 @@ def trainer_custom(args, model, snapshot_path, multimask_output, low_res):
 
         if current_miou > best_miou:
             best_miou = current_miou
+            early_stop_counter = 0  # reset early stopping counter
             save_mode_path = os.path.join(snapshot_path, 'best_model.pth')
             try:
                 model.save_lora_parameters(save_mode_path)
             except:
                 model.module.save_lora_parameters(save_mode_path)
             logging.info("save model to {}".format(save_mode_path))
+        else:
+            early_stop_counter += 1
+            logging.info(f"EarlyStop: no improvement for {early_stop_counter}/{early_stop_patience} epochs")
 
         save_interval = args.save_weight_interval
         if (epoch_num + 1) % save_interval == 0:
@@ -197,6 +226,12 @@ def trainer_custom(args, model, snapshot_path, multimask_output, low_res):
             except:
                 model.module.save_lora_parameters(save_mode_path)
             logging.info("save model to {}".format(save_mode_path))
+
+        # Early stopping: stop if no improvement for `patience` epochs
+        if early_stop_counter >= early_stop_patience:
+            logging.info(f"Early stopping triggered after {epoch_num} epochs (no mIoU improvement for {early_stop_patience} epochs)")
+            iterator.close()
+            break
 
         if epoch_num >= max_epoch - 1 or epoch_num >= stop_epoch - 1:
             save_mode_path = os.path.join(snapshot_path, 'epoch_' + str(epoch_num) + '.pth')

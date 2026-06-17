@@ -44,20 +44,22 @@ class _LoRA_qkv(nn.Module):
 
 
 class LoRA_Sam(nn.Module):
-    """Applies low-rank adaptation to a Sam model's image encoder.
+    """LoRA (Low-Rank Adaptation) for SAM's image encoder.
+
+    Freezes the original SAM image encoder and injects trainable low-rank
+    decomposition matrices into the q/k/v attention projections. This allows
+    efficient fine-tuning with only a small fraction of trainable parameters.
+
+    The prompt encoder and mask decoder remain fully trainable (not frozen).
 
     Args:
-        sam_model: a vision transformer model, see base_vit.py
-        r: rank of LoRA
-        num_classes: how many classes the model output, default to the vit model
-        lora_layer: which layer we apply LoRA.
+        sam_model (Sam): A Segment Anything Model instance.
+        r (int): Rank of the low-rank adaptation matrices.
+        lora_layer (list[int], optional): Indices of transformer blocks to
+            apply LoRA to. Defaults to all blocks (full image encoder).
 
-    Examples::
-        # >>> model = ViT('B_16_imagenet1k')
-        # >>> lora_model = LoRA_ViT(model, r=4)
-        # >>> preds = lora_model(img)
-        # >>> print(preds.shape)
-        torch.Size([1, 1000])
+    Reference:
+        Hu et al., "LoRA: Low-Rank Adaptation of Large Language Models", ICLR 2022.
     """
 
     def __init__(self, sam_model: Sam, r: int, lora_layer=None):
